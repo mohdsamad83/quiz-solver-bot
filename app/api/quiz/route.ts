@@ -47,12 +47,9 @@ export async function POST(req: NextRequest) {
 }
 
 async function solveQuiz(payload: QuizPayload): Promise<any> {
-  // The use of an external code execution service for Pandas/NumPy is a critical
-  // design decision. Vercel's serverless environment has limitations on package
-  // size and execution time, making it unsuitable for heavy data analysis.
-  // By offloading the Python execution to a dedicated sandbox, we can leverage
-  // the power of these libraries without being constrained by the serverless
-  // environment.
+  // This simplified architecture relies entirely on AIPipe for all reasoning,
+  // calculation, and final answering. It removes the need for an external
+  // code execution sandbox, making the application easier to maintain and deploy.
 
   // 1. Data Sourcing (Scraping)
   const browser = await playwright.chromium.launch({
@@ -89,7 +86,7 @@ async function solveQuiz(payload: QuizPayload): Promise<any> {
   let submissionResponse;
 
   while (retries < maxRetries) {
-    // 3. LLM Code Generation (AIPipe)
+    // 3. Final LLM Prompt (AIPipe Only)
     const aipipeResponse = await axios.post(
       'https://api.aipipe.org/v1/chat/completions',
       {
@@ -97,11 +94,11 @@ async function solveQuiz(payload: QuizPayload): Promise<any> {
         messages: [
           {
             role: 'system',
-            content: "You are an expert Python data analyst. Your ONLY output must be a single, self-contained Python script that solves the quiz. Use Pandas, NumPy, and Matplotlib. **Assume the data is already loaded into a Pandas DataFrame named `df` from a global variable called `DATA_STRING`.** The script MUST define a variable named `FINAL_ANSWER` holding the result (number, boolean, string, JSON, or base64 URI of a generated image for visualization). Do not include any file operations or extra dialogue."
+            content: "You are an ultimate, fully self-contained data analysis engine. Your task is to perform the required data sourcing, preparation, analysis, and visualization requested by the user. **You MUST return only the final, calculated answer.** If a visualization (chart) is required, you must return the correct **Python code** that generates the Matplotlib chart, followed by the specific base64 string that chart would produce if run. If the answer is a simple value (number, string, boolean), return only that value. **DO NOT include any explanation or extra text.**"
           },
           {
             role: 'user',
-            content: `Quiz Question: ${questionText}\n\nData (first 5 rows):\n${dataString.substring(0, 500)}`
+            content: `Quiz Question: ${questionText}\n\nSubmission URL: ${submissionUrl}\n\nData:\n${dataString}`
           }
         ]
       },
@@ -112,18 +109,8 @@ async function solveQuiz(payload: QuizPayload): Promise<any> {
       }
     );
 
-    const pythonCode = aipipeResponse.data.choices[0].message.content;
-
-    // 4. Code Execution (External Sandbox)
-    const codeExecutionResponse = await axios.post(
-      process.env.CODE_EXECUTION_ENDPOINT!,
-      {
-        code: pythonCode,
-        data: dataString
-      }
-    );
-
-    const finalAnswer = codeExecutionResponse.data.final_answer;
+    // 4. Result Parsing
+    const finalAnswer = aipipeResponse.data.choices[0].message.content;
 
     // 5. Submission & Looping
     const submissionPayload = {
