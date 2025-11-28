@@ -3,8 +3,13 @@ const nextConfig = {
     experimental: {
         serverComponentsExternalPackages: ['@sparticuz/chromium'],
     },
-    // increase the max duration for serverless functions
-    maxDuration: 120,
+    webpack: (config, { isServer }) => {
+        if (isServer) {
+            // Make Playwright dependencies external
+            config.externals.push('playwright-core', 'chromium-bidi', 'electron');
+        }
+        return config;
+    },
 };
 
 module.exports = nextConfig;
