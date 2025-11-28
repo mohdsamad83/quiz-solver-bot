@@ -116,6 +116,7 @@ async function solveQuiz(payload: QuizPayload): Promise<any> {
     const submissionPayload = {
       answer: finalAnswer,
       email: process.env.MY_EMAIL,
+      secret: payload.secret,
     };
 
     submissionResponse = await axios.post(submissionUrl, submissionPayload);
